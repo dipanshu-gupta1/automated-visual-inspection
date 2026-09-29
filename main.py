@@ -1,21 +1,44 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Depends
+from sqlalchemy.orm import Session
+import models
+from database import SessionLocal, engine
 
-# Meet our Delivery Person! We call it "app"
 app = FastAPI(title="Defect Detection API")
 
-# Door 1: A simple greeting. When someone knocks here, we just say hello!
+# 🧑‍🏫 Meet the Librarian! 
+# This function opens the database diary, lets us write in it, and safely closes it when we finish.
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.get("/")
 def read_root():
     return {"message": "Hello! The Factory API is awake and ready!"}
 
-# Door 2: The drop-off box! This is where the camera will hand us pictures.
+# 📦 The Drop-off Box
+# Notice we added 'db: Session = Depends(get_db)'. We are handing the Delivery Person the diary!
 @app.post("/upload-image/")
-async def receive_image(file: UploadFile = File(...)):
+async def receive_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     
-    # (Later, we will hand this picture to the AI Brain!)
+    # 1. Fill out a new blank form with the picture's info
+    new_defect_record = models.Defect(
+        image_name=file.filename,
+        defect_type="pending check",  # We don't have the AI Brain yet, so we write "pending"
+        confidence=0.0
+    )
     
-    # For now, we just accept the picture and say "Thank you!"
+    # 2. Add the form to the diary (add) and save it permanently in ink (commit)
+    db.add(new_defect_record)
+    db.commit()
+    
+    # 3. Read the ID number PostgreSQL just gave this new row
+    db.refresh(new_defect_record)
+    
     return {
-        "message": f"Successfully received the picture named: {file.filename}",
-        "status": "Picture saved, ready for inspection!"
+        "message": f"Successfully received {file.filename}",
+        "database_id": new_defect_record.id,
+        "status": "Saved to PostgreSQL! Ready for AI inspection."
     }
