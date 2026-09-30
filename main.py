@@ -1,12 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 import models
+import detector  # <--- We imported our new Inspector!
 from database import SessionLocal, engine
 
+models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Defect Detection API")
 
-# 🧑‍🏫 Meet the Librarian! 
-# This function opens the database diary, lets us write in it, and safely closes it when we finish.
 def get_db():
     db = SessionLocal()
     try:
@@ -18,27 +18,29 @@ def get_db():
 def read_root():
     return {"message": "Hello! The Factory API is awake and ready!"}
 
-# 📦 The Drop-off Box
-# Notice we added 'db: Session = Depends(get_db)'. We are handing the Delivery Person the diary!
 @app.post("/upload-image/")
 async def receive_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     
-    # 1. Fill out a new blank form with the picture's info
+    # 1. Read the picture data
+    image_bytes = await file.read()
+    
+    # 2. 🧠 Slide the picture under the door to the Inspector!
+    ai_diagnosis, ai_confidence = detector.analyze_image(image_bytes)
+    
+    # 3. Write down what the AI said in the diary
     new_defect_record = models.Defect(
         image_name=file.filename,
-        defect_type="pending check",  # We don't have the AI Brain yet, so we write "pending"
-        confidence=0.0
+        defect_type=ai_diagnosis,    # <--- Saving the AI's answer!
+        confidence=ai_confidence     # <--- Saving the AI's confidence score!
     )
     
-    # 2. Add the form to the diary (add) and save it permanently in ink (commit)
     db.add(new_defect_record)
     db.commit()
-    
-    # 3. Read the ID number PostgreSQL just gave this new row
     db.refresh(new_defect_record)
     
     return {
-        "message": f"Successfully received {file.filename}",
-        "database_id": new_defect_record.id,
-        "status": "Saved to PostgreSQL! Ready for AI inspection."
+        "message": f"Successfully inspected {file.filename}",
+        "ai_saw": ai_diagnosis,
+        "confidence": ai_confidence,
+        "database_id": new_defect_record.id
     }
