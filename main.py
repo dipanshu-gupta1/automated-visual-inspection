@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import models
 import detector  # <--- We imported our new Inspector!
@@ -6,7 +7,13 @@ from database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Defect Detection API")
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows any website to talk to us (perfect for testing)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all actions (like POST and GET)
+    allow_headers=["*"],
+)
 def get_db():
     db = SessionLocal()
     try:
